@@ -1,0 +1,1 @@
+Year,Month_sin,Month_cos,Day_sin,Day_cos,Latitude,Longitude,Depth
