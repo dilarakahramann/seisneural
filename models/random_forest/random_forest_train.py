@@ -10,13 +10,15 @@ import os
 # macOS/Windows'ta çoklu işlem hatalarını önlemek için ana blok
 if __name__ == '__main__':
 
-    # 1. VERİLERİ YÜKLEME (Sadece Eğitim Verisi)
+    # 1. VERİLERİ YÜKLEME (ORİJİNAL Eğitim Verisi + Sample Weights)
     print("Eğitim verileri yükleniyor...")
-    X_train = pd.read_csv('../../data/processed/X_train.csv')
-    y_train = pd.read_csv('../../data/processed/y_train.csv').values.ravel()
+    X_train = pd.read_csv('../../data/processed/X_train_original.csv')
+    y_train = pd.read_csv('../../data/processed/y_train_original.csv').values.ravel()
+    sample_weights = pd.read_csv('../../data/processed/sample_weights.csv').values.ravel()
 
     print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
     print(f"Öznitelikler: {list(X_train.columns)}")
+    print(f"Sample weights aralığı: [{sample_weights.min():.4f}, {sample_weights.max():.4f}]")
 
     # 2. MODEL VE PARAMETRE HAZIRLIĞI
     rf_model = RandomForestRegressor(random_state=42)
@@ -24,11 +26,11 @@ if __name__ == '__main__':
     # GridSearchCV: Tüm kombinasyonları dener (En kapsamlı arama)
     param_grid = {
         'n_estimators': [100, 200, 300, 500],
-        'max_depth': [10, 15, 20, 30, None],
-        'min_samples_split': [2, 5, 10, 15],
-        'min_samples_leaf': [1, 2, 4, 8],
-        'max_features': ['sqrt', 'log2', None],
-        'bootstrap': [True, False]
+        'max_depth': [10, 20, 30, None],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4],
+        'max_features': ['sqrt', None],
+        'bootstrap': [True]
     }
 
     # 3. EĞİTİM (GridSearchCV)
@@ -38,13 +40,13 @@ if __name__ == '__main__':
         param_grid=param_grid,
         cv=5,
         scoring='neg_mean_squared_error',
-        n_jobs=2,               # Hafıza sızıntısını (memory leak) önlemek için çekirdek kısıtlaması
+        n_jobs=-1,
         pre_dispatch='2*n_jobs',
         verbose=2,
         return_train_score=True,
     )
 
-    grid_search.fit(X_train, y_train)
+    grid_search.fit(X_train, y_train, sample_weight=sample_weights)
 
     # 4. CROSS-VALIDATION (DOĞRULAMA) SONUÇLARI
     cv_sonuclari = grid_search.cv_results_

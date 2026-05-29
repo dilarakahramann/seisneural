@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix
+from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix, mean_absolute_error
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 import os
 
-# 1. KİLİTLİ KASADAKİ TEST VERİLERİNİ YÜKLEME
+# 1. TEST VERİLERİNİ YÜKLEME
 print("Test verileri yükleniyor...")
 X_test = pd.read_csv('../../data/processed/X_test.csv')
 y_test = pd.read_csv('../../data/processed/y_test.csv').values.ravel()
@@ -30,11 +30,13 @@ y_pred = best_rf.predict(X_test)
 # Görev Tanımındaki Metriklerin Hesaplanması
 test_mse = mean_squared_error(y_test, y_pred)
 test_rmse = np.sqrt(test_mse)
+test_mae = mean_absolute_error(y_test, y_pred)
 test_r2 = r2_score(y_test, y_pred)
 
 print("\n=== NİHAİ TEST BAŞARI KARNESİ ===")
 print(f"Test MSE  : {test_mse:.4f}")
 print(f"Test RMSE : {test_rmse:.4f}")
+print(f"Test MAE  : {test_mae:.4f}")
 print(f"Test R²   : {test_r2:.4f}")
 
 # 4. KARMAŞIKLIK MATRİSİ (Risk Sınıflandırması)
@@ -123,3 +125,26 @@ with open(log_dosyasi, "a", encoding="utf-8") as dosya:
     dosya.write(log_metni)
 
 print("Test sonuçları rapora eklendi.")
+
+# 8. KARŞILAŞTIRMA METRİKLERİNİ GÜNCELLE
+import json
+comparison_path = "../comparison_metrics.json"
+try:
+    with open(comparison_path, "r", encoding="utf-8") as f:
+        comparison = json.load(f)
+except Exception:
+    comparison = {}
+
+comparison["random_forest"] = {
+    "test_rmse": round(float(test_rmse), 4),
+    "test_r2": round(float(test_r2), 4),
+    "test_mse": round(float(test_mse), 4),
+    "test_mae": round(float(test_mae), 4),
+    "model_file": model_adi,
+    "last_updated": zaman,
+}
+
+with open(comparison_path, "w", encoding="utf-8") as f:
+    json.dump(comparison, f, indent=2, ensure_ascii=False)
+
+print(f"[BAŞARILI] Karşılaştırma metrikleri '{comparison_path}' güncellendi.")
