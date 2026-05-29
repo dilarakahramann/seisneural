@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date
 import time
+import requests
 
 # ============================================================
 # SEIS-NEURAL: Deprem Büyüklüğü Tahmini — Karar Destek Sistemi
@@ -33,12 +34,6 @@ RISK_THRESHOLDS = {
     "mid": {"max": 6.0, "label": "ORTA RİSK", "bg": "#fef3c7", "fg": "#b45309", "cls": "risk-mid"},
     "high": {"max": float("inf"), "label": "YIKICI RİSK", "bg": "#ffe4e6", "fg": "#be123c", "cls": "risk-high"},
 }
-
-DUMMY_FEATURE_IMPORTANCE = pd.DataFrame({
-    "Öznitelik": ["Odak Derinliği (km)", "Enlem Derecesi (Koordinat)", "Boylam Derecesi (Koordinat)"],
-    "Etki (%)": [55, 30, 15],
-}).sort_values("Etki (%)", ascending=False)
-
 
 def configure_page() -> None:
     """Streamlit sayfa yapılandırmasını ayarlar."""
@@ -157,16 +152,49 @@ def get_risk_level(magnitude: float) -> dict:
     return RISK_THRESHOLDS["high"]
 
 
-def run_dummy_analysis(lat: float, lng: float, depth: float, analysis_date: date) -> dict:
-    """Backend API entegrasyonu öncesi dummy (sahte) analiz verisi üretir."""
-    np.random.seed(int(lat * 100 + lng * 10 + depth + analysis_date.day))
-    base_mag = 3.0 + (depth / 150) * 2.5 + np.random.uniform(-0.5, 1.5)
-    base_mag = round(max(3.0, min(7.8, base_mag)), 2)
-    return {
-        "best_magnitude": base_mag,
-        "best_model_name": "Random Forest",
-        "feature_importance": DUMMY_FEATURE_IMPORTANCE.copy(),
-    }
+def run_api_analysis(lat: float, lng: float, depth: float, analysis_date: date) -> dict:
+    """Backend API'ye POST isteği göndererek gerçek analiz verisi alır."""
+    try:
+        payload = {
+            "latitude": float(lat),
+            "longitude": float(lng),
+            "depth": float(depth),
+            "year": int(analysis_date.year),
+            "month": int(analysis_date.month),
+            "day": int(analysis_date.day),
+        }
+        response = requests.post("http://localhost:8000/predict", json=payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        # API hata mesajı döndürdüyse
+        if "error" in data:
+            st.error(f"API Hatası: {data['error']}")
+            return None
+
+        # Feature importance sözlüğünü DataFrame'e dönüştür
+        fi_dict = data.get("feature_importance", {})
+        fi_df = pd.DataFrame({
+            "Öznitelik": list(fi_dict.keys()),
+            "Etki (%)": [v * 100 for v in fi_dict.values()],
+        }).sort_values("Etki (%)", ascending=False)
+
+        return {
+            "best_magnitude": data.get("magnitude", 0.0),
+            "best_model_name": data.get("best_model_name", "Random Forest"),
+            "confidence": data.get("confidence", 0.0),
+            "risk_level": data.get("risk_level", "Hafif"),
+            "rfVal": data.get("rfVal"),
+            "mlpVal": data.get("mlpVal"),
+            "xgbVal": data.get("xgbVal"),
+            "feature_importance": fi_df,
+        }
+    except requests.exceptions.ConnectionError:
+        st.error("Backend API'ye bağlanılamadı. Lütfen `python backend/api.py` komutu ile sunucuyu başlatın.")
+        return None
+    except Exception as e:
+        st.error(f"API isteği sırasında hata oluştu: {e}")
+        return None
 
 
 # ─── 4. BİLEŞEN RENDER FONKSİYONLARI ───
@@ -283,15 +311,18 @@ def render_input_panel() -> None:
     # ── 4.5 Analiz Butonu ──
     if st.button("Analizi Başlat", type="primary", use_container_width=True):
         with st.spinner("Modeller analiz ediyor..."):
-            time.sleep(1.2)
-            st.session_state.results = run_dummy_analysis(
+            time.sleep(0.5)
+            results = run_api_analysis(
                 st.session_state.latitude,
                 st.session_state.longitude,
                 st.session_state.depth,
                 st.session_state.analysis_date,
             )
-            st.session_state.analyzed = True
-        st.rerun()
+            if results is not None:
+                st.session_state.results = results
+                st.session_state.analyzed = True
+        if st.session_state.analyzed:
+            st.rerun()
 
     # ── 4.6 Bilgilendirme Kutusu ──
     st.markdown(
@@ -308,6 +339,7 @@ def render_hero_card(results: dict) -> None:
     """Ana sonuç kartını (Hero Section) çizer. Native border container ile."""
     mag = results["best_magnitude"]
     risk = get_risk_level(mag)
+    confidence = results.get("confidence", 0.0)
 
     with st.container(border=True):
         col_left, col_right = st.columns([3, 2])
@@ -339,6 +371,11 @@ def render_hero_card(results: dict) -> None:
                 f'Seçilen Model: <strong style="color:#475569;">{results["best_model_name"]}</strong></div>',
                 unsafe_allow_html=True,
             )
+            st.markdown(
+                f'<div style="text-align:right;font-size:0.75rem;color:#94a3b8;margin-top:0.3rem;">'
+                f'Güven Skoru: <strong style="color:#475569;">{confidence:.1f}%</strong></div>',
+                unsafe_allow_html=True,
+            )
 
 
 def render_analysis_summary(results: dict) -> None:
@@ -346,7 +383,8 @@ def render_analysis_summary(results: dict) -> None:
     mag = results["best_magnitude"]
     risk = get_risk_level(mag)
     fi = results["feature_importance"]
-    top_factor = fi.iloc[0]["Öznitelik"]
+    top_factor = fi.iloc[0]["Öznitelik"] if not fi.empty else "Bilinmiyor"
+    top_pct = fi.iloc[0]["Etki (%)"] if not fi.empty else 0.0
 
     st.markdown(
         '<div class="section-title">Yapay Zeka Deprem Tahmini</div>',
@@ -366,7 +404,7 @@ def render_analysis_summary(results: dict) -> None:
             {results['best_model_name']} modeli, bu parametrelere göre
             <strong>{mag:.1f} Mw</strong> büyüklüğünde bir deprem tahmin ediyor.
             Bu tahmin <strong>{risk['label']}</strong> kategorisindedir.<br><br>
-            En belirleyici faktör: <strong>{top_factor}</strong> ({fi.iloc[0]['Etki (%)']}%).
+            En belirleyici faktör: <strong>{top_factor}</strong> ({top_pct:.1f}%).
         </div>
         """,
         unsafe_allow_html=True,
@@ -375,6 +413,16 @@ def render_analysis_summary(results: dict) -> None:
 
 def render_feature_card(features_df: pd.DataFrame) -> None:
     """Öznitelik etki ağırlığı kartını çizer. Kart + grafik tek blokta."""
+    if features_df is None or features_df.empty:
+        with st.container(border=True):
+            st.markdown(
+                '<div style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:0.2rem;">'
+                'Değişkenlerin Etki Ağırlığı</div>',
+                unsafe_allow_html=True,
+            )
+            st.info("Öznitelik önemi verisi mevcut değil. Model eğitimi tamamlandıktan sonra burada görüntülenecektir.")
+        return
+
     # Ince bar chart
     fig = px.bar(
         features_df,
@@ -414,6 +462,61 @@ def render_feature_card(features_df: pd.DataFrame) -> None:
             unsafe_allow_html=True,
         )
         st.plotly_chart(fig, use_container_width=True)
+
+
+def render_leaderboard(results: dict) -> None:
+    """3 modelin (MLP, RF, XGBoost) tahmin sonuçlarını karşılaştırmalı olarak gösterir."""
+    best_model_name = results.get("best_model_name", "")
+    rf_val = results.get("rfVal")
+    mlp_val = results.get("mlpVal")
+    xgb_val = results.get("xgbVal")
+
+    rows = []
+    if rf_val is not None:
+        rows.append({
+            "Model": "Random Forest",
+            "Tahmin (Mw)": f"{rf_val:.2f}",
+            "Durum": "🏆 Seçilen Model" if best_model_name == "Random Forest" else "",
+        })
+    if mlp_val is not None:
+        rows.append({
+            "Model": "MLP",
+            "Tahmin (Mw)": f"{mlp_val:.2f}",
+            "Durum": "🏆 Seçilen Model" if best_model_name == "MLP" else "",
+        })
+    if xgb_val is not None:
+        rows.append({
+            "Model": "XGBoost",
+            "Tahmin (Mw)": f"{xgb_val:.2f}",
+            "Durum": "🏆 Seçilen Model" if best_model_name == "XGBoost" else "",
+        })
+
+    if not rows:
+        return
+
+    df = pd.DataFrame(rows)
+
+    with st.container(border=True):
+        st.markdown(
+            '<div style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:0.2rem;">'
+            'Algoritma Karşılaştırması</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:0.75rem;">'
+            'Eş zamanlı çalışan modellerin tahmin sonuçları</div>',
+            unsafe_allow_html=True,
+        )
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Model": st.column_config.TextColumn("Model", width="medium"),
+                "Tahmin (Mw)": st.column_config.TextColumn("Tahmin", width="small"),
+                "Durum": st.column_config.TextColumn("", width="medium"),
+            },
+        )
 
 
 def render_empty_dashboard() -> None:
@@ -462,11 +565,15 @@ def render_dashboard(results: dict) -> None:
     render_hero_card(results)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # BÖLÜM B: Sismik Analiz Raporu
+    # BÖLÜM B: Algoritma Karşılaştırması (Leaderboard)
+    render_leaderboard(results)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # BÖLÜM C: Sismik Analiz Raporu
     render_analysis_summary(results)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # BÖLÜM C: Feature Importance (kart içinde)
+    # BÖLÜM D: Feature Importance (kart içinde)
     render_feature_card(results["feature_importance"])
 
     # Footer
