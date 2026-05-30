@@ -1,26 +1,26 @@
 {
   "random_forest": {
-    "test_rmse": null,
-    "test_r2": null,
-    "test_mse": null,
-    "test_mae": null,
-    "model_file": null,
-    "last_updated": null
+    "test_rmse": 0.3718,
+    "test_r2": 0.2058,
+    "test_mse": 0.1382,
+    "test_mae": 0.2642,
+    "model_file": "rf_model_v4.pkl",
+    "last_updated": "2026-05-31 00:42:05"
   },
   "mlp": {
-    "test_rmse": null,
-    "test_r2": null,
-    "test_mse": null,
-    "test_mae": null,
-    "model_file": null,
-    "last_updated": null
+    "test_rmse": 0.383,
+    "test_r2": 0.1573,
+    "test_mse": 0.1467,
+    "test_mae": 0.2712,
+    "model_file": "mlp_model_v4.pkl",
+    "last_updated": "2026-05-31 00:28:20"
   },
   "xgboost": {
-    "test_rmse": null,
-    "test_r2": null,
-    "test_mse": null,
-    "test_mae": null,
-    "model_file": null,
-    "last_updated": null
+    "test_rmse": 0.3709,
+    "test_r2": 0.2096,
+    "test_mse": 0.1376,
+    "test_mae": 0.2632,
+    "model_file": "xgb_model_v4.pkl",
+    "last_updated": "2026-05-31 00:28:01"
   }
 }

@@ -25,39 +25,15 @@ model_adi = f'mlp_model_v{son_versiyon_no}.pkl'
 print(f"'{model_adi}' yükleniyor ve nihai test başlatılıyor...")
 best_mlp = joblib.load(model_adi)
 
-# 3. TAHMİNLER (Enerji Uzayında - [0,1] arası)
-y_pred_scaled = best_mlp.predict(X_test)
-print(f"\nTahmin aralığı (scaled enerji): [{y_pred_scaled.min():.4f}, {y_pred_scaled.max():.4f}]")
+# 3. NİHAİ TEST TAHMİNLERİ (Doğrudan Mw Uzayında)
+# NOT: Mevcut V2/V4 modelleri doğrudan Mw üzerinde eğitilmiştir.
+#      Enerji dönüşümü (V3 denemesi) başarısız olup kaldırılmıştır.
+y_pred = best_mlp.predict(X_test)
 
-# =====================================================================
-# 4. GERİ DÖNÜŞÜM: Scaled Enerji -> Gerçek Enerji -> Mw (Büyüklük)
-# =====================================================================
-print("\n[Gerçek Büyüklük'e dönüşüm] Scaled Enerji -> Mw ...")
+print(f"\nTahmin aralığı (Mw): [{y_pred.min():.2f}, {y_pred.max():.2f}]")
+print(f"Gerçek aralığı  (Mw): [{y_test.min():.2f}, {y_test.max():.2f}]")
 
-# 4a. Hedef Scaler'ı load et (mlp_train.py'de kaydedildi)
-scaler_path = './mlp_y_scaler.pkl'
-if not os.path.exists(scaler_path):
-    raise FileNotFoundError(
-        f"'{scaler_path}' bulunamadı! \n"
-        f"Lütfen önce 'mlp_train.py'yi çalıştırın. "
-        f"Hedef dönüştürücü (y_scaler) ancak eğitim sırasında oluşturulur."
-    )
-
-y_scaler = joblib.load(scaler_path)
-
-# 4b. [0,1] arasındaki tahmini, gerçek enerji değerine geri çevir
-# DİKKAT: inverse_transform 2D array bekler, reshape şart!
-y_pred_energy = y_scaler.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
-
-# 4c. Enerjiyi tekrar Büyüklüğe (Mw) çevir
-# Fiziksel formül: Mw = log10(Enerji) / 1.5
-y_pred = np.log10(y_pred_energy) / 1.5
-
-print(f"  Tahmin aralığı (Mw): [{y_pred.min():.2f}, {y_pred.max():.2f}]")
-print(f"  Gerçek aralığı  (Mw): [{y_test.min():.2f}, {y_test.max():.2f}]")
-# =====================================================================
-
-# 5. NİHAİ TEST METRİKLERİ (Hepsi Mw üzerinden - diğer modellerle adil!)
+# 4. NİHAİ TEST METRİKLERİ (Mw Uzayında — Diğer Modellerle Adil)
 test_mse = mean_squared_error(y_test, y_pred)
 test_rmse = np.sqrt(test_mse)
 test_mae = mean_absolute_error(y_test, y_pred)
@@ -69,7 +45,7 @@ print(f"Test RMSE : {test_rmse:.4f}")
 print(f"Test MAE  : {test_mae:.4f}")
 print(f"Test R²   : {test_r2:.4f}")
 
-# 6. KARMAŞIKLIK MATRİSİ (Risk Sınıflandırması)
+# 5. KARMAŞIKLIK MATRİSİ (Risk Sınıflandırması)
 def risk_siniflandir(buyukluk):
     if buyukluk < 4.5: return "Hafif"
     elif buyukluk < 6.0: return "Orta"
@@ -96,7 +72,7 @@ plt.close()
 
 print(f"\n[BAŞARILI] Karmaşıklık Matrisi grafiği '{matris_adi}' olarak kaydedildi.")
 
-# 7. GERÇEK vs TAHMİN SCATTER PLOT (Mw Uzayında)
+# 6. GERÇEK vs TAHMİN SCATTER PLOT (Mw Uzayında)
 scatter_adi = f'gercek_vs_tahmin_v{son_versiyon_no}.png'
 
 plt.figure(figsize=(8, 8))
@@ -117,7 +93,7 @@ plt.close()
 
 print(f"[BAŞARILI] Gerçek vs Tahmin grafiği '{scatter_adi}' olarak kaydedildi.")
 
-# 8. RESIDUAL (HATA) HİSTOGRAMI
+# 7. RESIDUAL (HATA) HİSTOGRAMI
 residual_adi = f'residual_histogram_v{son_versiyon_no}.png'
 residuals = y_pred - y_test
 mean_residual = np.mean(residuals)
@@ -141,7 +117,7 @@ plt.close()
 
 print(f"[BAŞARILI] Residual histogram grafiği '{residual_adi}' olarak kaydedildi.")
 
-# 9. TEST SONUÇLARINI LOGLAMA
+# 8. TEST SONUÇLARINI LOGLAMA
 log_dosyasi = "mlp_deney_gecmisi.txt"
 zaman = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -150,8 +126,7 @@ log_metni = f"""
 AŞAMA 2: NİHAİ TEST RAPORU - {model_adi.replace('.pkl', '').upper()} (MW UZAYINDA)
 ==================================================
 Tarih        : {zaman}
-Dönüşüm      : Enerji -> Gerçek Enerji -> Mw (log10 / 1.5)
-Scaler       : ./mlp_y_scaler.pkl
+Preprocessing: V2 (8 Özellik, K-Means'siz, Ağırlıksız)
 
 [ NİHAİ TEST METRİKLERİ (Diğer Modellerle Adil Kıyaslama) ]
 Test MSE   : {test_mse:.4f}
@@ -165,7 +140,7 @@ with open(log_dosyasi, "a", encoding="utf-8") as dosya:
 
 print("Test sonuçları rapora eklendi.")
 
-# 10. KARŞILAŞTIRMA METRİKLERİNİ GÜNCELLE
+# 9. KARŞILAŞTIRMA METRİKLERİNİ GÜNCELLE
 import json
 comparison_path = "../comparison_metrics.json"
 try:
@@ -181,7 +156,6 @@ comparison["mlp"] = {
     "test_mae": round(float(test_mae), 4),
     "model_file": model_adi,
     "last_updated": zaman,
-    "target_transform": "energy (10^1.5*Mw) with MinMaxScaler, reverted to Mw for metrics"
 }
 
 with open(comparison_path, "w", encoding="utf-8") as f:

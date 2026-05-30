@@ -1,31 +1,31 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, confusion_matrix
+from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix, mean_absolute_error
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 import os
 
-# 1. KİLİTLİ KASADAKİ TEST VERİLERİNİ YÜKLEME
+# 1. TEST VERİLERİNİ YÜKLEME
 print("Test verileri yükleniyor...")
 X_test = pd.read_csv('../../data/processed/X_test.csv')
 y_test = pd.read_csv('../../data/processed/y_test.csv').values.ravel()
 
 # 2. EN SON KAYDEDİLEN MODELİ YÜKLEME
 mevcut_dosyalar = os.listdir('.')
-versiyonlar = [int(d.replace('xgb_model_v', '').replace('.pkl', '')) for d in mevcut_dosyalar if d.startswith('xgb_model_v') and d.endswith('.pkl')]
+versiyonlar = [int(d.replace('rf_model_v', '').replace('.pkl', '')) for d in mevcut_dosyalar if d.startswith('rf_model_v') and d.endswith('.pkl')]
 
 if not versiyonlar:
     raise FileNotFoundError("Kaydedilmiş bir model bulunamadı! Önce Eğitim kodunu çalıştırın.")
 
 son_versiyon_no = max(versiyonlar)
-model_adi = f'xgb_model_v{son_versiyon_no}.pkl'
+model_adi = f'rf_model_v{son_versiyon_no}.pkl'
 
 print(f"'{model_adi}' yükleniyor ve nihai test başlatılıyor...")
-best_xgb = joblib.load(model_adi)
+best_rf = joblib.load(model_adi)
 
 # 3. NİHAİ TEST TAHMİNLERİ
-y_pred = best_xgb.predict(X_test)
+y_pred = best_rf.predict(X_test)
 
 # Görev Tanımındaki Metriklerin Hesaplanması
 test_mse = mean_squared_error(y_test, y_pred)
@@ -75,7 +75,7 @@ max_val = max(y_test.max(), y_pred.max())
 plt.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Mükemmel Tahmin (45°)')
 plt.xlabel("Gerçek Büyüklük (Mw)", fontsize=12)
 plt.ylabel("Tahmin Edilen Büyüklük (Mw)", fontsize=12)
-plt.title(f"Gerçek vs Tahmin — XGBoost (v{son_versiyon_no})\nRMSE: {test_rmse:.4f} | R²: {test_r2:.4f}", fontsize=13)
+plt.title(f"Gerçek vs Tahmin — Random Forest (v{son_versiyon_no})\nRMSE: {test_rmse:.4f} | R²: {test_r2:.4f}", fontsize=13)
 plt.legend(loc='upper left')
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
@@ -96,7 +96,7 @@ plt.axvline(mean_residual, color='red', linestyle='--', linewidth=2, label=f'Ort
 plt.axvline(0, color='gray', linestyle='-', linewidth=1.5, alpha=0.5, label='Sıfır Hata')
 plt.xlabel("Tahmin Hatası (Mw)", fontsize=12)
 plt.ylabel("Frekans", fontsize=12)
-plt.title(f"Residual Dağılımı — XGBoost (v{son_versiyon_no})\nStd: {std_residual:.4f}", fontsize=13)
+plt.title(f"Residual Dağılımı — Random Forest (v{son_versiyon_no})\nStd: {std_residual:.4f}", fontsize=13)
 plt.legend(loc='best')
 plt.grid(True, alpha=0.3, axis='y')
 plt.tight_layout()
@@ -106,7 +106,7 @@ plt.close()
 print(f"[BAŞARILI] Residual histogram grafiği '{residual_adi}' olarak kaydedildi.")
 
 # 7. TEST SONUÇLARINI LOGLAMA
-log_dosyasi = "xgb_deney_gecmisi.txt"
+log_dosyasi = "rf_deney_gecmisi.txt"
 zaman = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
 
 log_metni = f"""
@@ -114,12 +114,10 @@ log_metni = f"""
 AŞAMA 2: NİHAİ TEST RAPORU - {model_adi.replace('.pkl', '').upper()}
 ==================================================
 Tarih        : {zaman}
-Preprocessing: V2 (8 Özellik, K-Means'siz, Ağırlıksız)
 
-[ NİHAİ TEST METRİKLERİ ]
+[ NİHAİ TEST METRİKLERİ (YSA İLE KIYASLANACAK) ]
 Test MSE   : {test_mse:.4f}
 Test RMSE  : {test_rmse:.4f}
-Test MAE   : {test_mae:.4f}
 Test R²    : {test_r2:.4f}
 --------------------------------------------------\n"""
 
@@ -137,7 +135,7 @@ try:
 except Exception:
     comparison = {}
 
-comparison["xgboost"] = {
+comparison["random_forest"] = {
     "test_rmse": round(float(test_rmse), 4),
     "test_r2": round(float(test_r2), 4),
     "test_mse": round(float(test_mse), 4),

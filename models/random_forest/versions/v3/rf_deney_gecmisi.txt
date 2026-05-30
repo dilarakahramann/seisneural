@@ -1,3 +1,4 @@
+
 ==================================================
 AŞAMA 1: EĞİTİM RAPORU - RF_MODEL_V1
 ==================================================
@@ -10,13 +11,9 @@ Parametreler : {'bootstrap': True, 'max_depth': 10, 'max_features': 'sqrt', 'min
   Overfitting Gap  : -0.9610
 --------------------------------------------------
 
-
-==================================================
-AŞAMA 1: EĞİTİM RAPORU - RF_MODEL_V2
-==================================================
+Versiyon: V2 (Smoothed Weights & Tam Veri)
 Parametreler: {'bootstrap': True, 'max_depth': 10, 'max_features': 'sqrt', 'min_samples_leaf': 4, 'min_samples_split': 10, 'n_estimators': 300}
 CV Doğrulama RMSE: 0.7085
-Eğitim R² Skoru  : (kaydedilmemiş)
 CV Eğitim RMSE: 0.4098
 Overfitting Gap: 0.2987
 --------------------------------------------------
@@ -30,27 +27,4 @@ CV Doğrulama RMSE: 0.3579
 Eğitim R² Skoru  : 0.5138
 CV Eğitim RMSE: 0.2780
 Overfitting Gap: 0.0799
---------------------------------------------------
-
-==================================================
-AŞAMA 1: EĞİTİM RAPORU - RF_MODEL_V4 (RandomizedSearch, Ağırlıksız)
-==================================================
-Parametreler: {'n_estimators': 200, 'min_samples_split': 20, 'min_samples_leaf': 2, 'max_features': 'sqrt', 'max_depth': 20}
-CV Doğrulama RMSE: 0.3579
-Eğitim R² Skoru  : 0.4492
-CV Eğitim RMSE: 0.2959
-Overfitting Gap: 0.0620
---------------------------------------------------
-
-==================================================
-AŞAMA 2: NİHAİ TEST RAPORU - RF_MODEL_V4
-==================================================
-Tarih        : 2026-05-31 00:42:05
-Preprocessing: V2 (8 Özellik, K-Means'siz, Ağırlıksız)
-
-[ NİHAİ TEST METRİKLERİ (Diğer Modellerle Kıyaslama) ]
-Test MSE   : 0.1382
-Test RMSE  : 0.3718
-Test MAE   : 0.2642
-Test R²    : 0.2058
 --------------------------------------------------

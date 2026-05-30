@@ -19,3 +19,26 @@ Eğitim R² Skoru   (Enerji): -0.0003
 CV Eğitim RMSE    (Enerji): 0.0064
 Overfitting Gap   (Enerji): -0.0000
 --------------------------------------------------
+
+==================================================
+AŞAMA 1: EĞİTİM RAPORU - MLP_MODEL_V4
+==================================================
+Parametreler: {'max_iter': 1000, 'learning_rate_init': 0.005, 'hidden_layer_sizes': (256, 128, 64), 'alpha': 0.001}
+CV Doğrulama RMSE: 0.3665
+Eğitim R² Skoru  : 0.1655
+CV Eğitim RMSE: 0.3642
+Overfitting Gap: 0.0024
+--------------------------------------------------
+
+==================================================
+AŞAMA 2: NİHAİ TEST RAPORU - MLP_MODEL_V4 (MW UZAYINDA)
+==================================================
+Tarih        : 2026-05-31 00:28:20
+Preprocessing: V2 (8 Özellik, K-Means'siz, Ağırlıksız)
+
+[ NİHAİ TEST METRİKLERİ (Diğer Modellerle Adil Kıyaslama) ]
+Test MSE   : 0.1467
+Test RMSE  : 0.3830
+Test MAE   : 0.2712
+Test R²    : 0.1573
+--------------------------------------------------

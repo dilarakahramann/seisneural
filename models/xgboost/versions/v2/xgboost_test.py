@@ -114,7 +114,6 @@ log_metni = f"""
 AŞAMA 2: NİHAİ TEST RAPORU - {model_adi.replace('.pkl', '').upper()}
 ==================================================
 Tarih        : {zaman}
-Preprocessing: V2 (8 Özellik, K-Means'siz, Ağırlıksız)
 
 [ NİHAİ TEST METRİKLERİ ]
 Test MSE   : {test_mse:.4f}

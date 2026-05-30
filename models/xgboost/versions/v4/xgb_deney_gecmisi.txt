@@ -39,16 +39,3 @@ Eğitim R² Skoru  : 0.3651
 CV Eğitim RMSE: 0.3176
 Overfitting Gap: 0.0407
 --------------------------------------------------
-
-==================================================
-AŞAMA 2: NİHAİ TEST RAPORU - XGB_MODEL_V4
-==================================================
-Tarih        : 2026-05-31 00:28:01
-Preprocessing: V2 (8 Özellik, K-Means'siz, Ağırlıksız)
-
-[ NİHAİ TEST METRİKLERİ ]
-Test MSE   : 0.1376
-Test RMSE  : 0.3709
-Test MAE   : 0.2632
-Test R²    : 0.2096
---------------------------------------------------
