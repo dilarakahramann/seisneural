@@ -291,6 +291,8 @@ def render_input_panel() -> None:
         selected_date = st.date_input(
             "Tarih",
             value=st.session_state.analysis_date,
+            min_value=date(1990, 1, 1),
+            max_value=date.today(),
             key="date_input",
         )
         st.session_state.analysis_date = selected_date
