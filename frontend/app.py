@@ -26,7 +26,7 @@ TURKEY_CENTER_LNG = 35.0
 MAP_ZOOM_START = 6
 
 DEPTH_MIN = 0
-DEPTH_MAX = 150
+DEPTH_MAX = 50
 DEPTH_DEFAULT = 10
 
 RISK_THRESHOLDS = {
@@ -188,6 +188,9 @@ def run_api_analysis(lat: float, lng: float, depth: float, analysis_date: date) 
             "mlpVal": data.get("mlpVal"),
             "xgbVal": data.get("xgbVal"),
             "feature_importance": fi_df,
+            "preprocessing_version": data.get("preprocessing_version", "Bilinmiyor"),
+            "loaded_models": data.get("loaded_models", {}),
+            "model_status": data.get("model_status", {}),
         }
     except requests.exceptions.ConnectionError:
         st.error("Backend API'ye bağlanılamadı. Lütfen `python backend/api.py` komutu ile sunucuyu başlatın.")
@@ -211,7 +214,7 @@ def render_input_panel() -> None:
 
     # ── 4.1 Harita ──
     m = folium.Map(
-        location=[TURKEY_CENTER_LAT, TURKEY_CENTER_LNG],
+        location=[st.session_state.latitude, st.session_state.longitude],
         zoom_start=MAP_ZOOM_START,
         tiles="OpenStreetMap",
     )
@@ -237,22 +240,21 @@ def render_input_panel() -> None:
         key="main_map",
     )
 
-    if map_data is not None:
-        last_clicked = map_data.get("last_clicked")
-        if last_clicked is not None:
-            lat_clicked = round(float(last_clicked.get("lat", st.session_state.latitude)), 4)
-            lng_clicked = round(float(last_clicked.get("lng", st.session_state.longitude)), 4)
-            if lat_clicked != st.session_state.latitude or lng_clicked != st.session_state.longitude:
-                st.session_state.latitude = lat_clicked
-                st.session_state.longitude = lng_clicked
-                st.rerun()
+    if map_data and map_data.get("last_clicked"):
+        last_clicked = map_data["last_clicked"]
+        lat_clicked = round(float(last_clicked.get("lat", st.session_state.latitude)), 4)
+        lng_clicked = round(float(last_clicked.get("lng", st.session_state.longitude)), 4)
+        if lat_clicked != st.session_state.latitude or lng_clicked != st.session_state.longitude:
+            st.session_state.latitude = lat_clicked
+            st.session_state.longitude = lng_clicked
+            st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── 4.2 Koordinat Formu ──
-    col_lat, col_lng = st.columns([3, 1])
+    # ── 4.2 Koordinat Formu (yan yana) ──
+    col_lat, col_lng = st.columns(2)
     with col_lat:
-        st.number_input(
+        new_lat = st.number_input(
             "Enlem",
             min_value=36.0,
             max_value=42.0,
@@ -260,14 +262,9 @@ def render_input_panel() -> None:
             step=0.01,
             format="%.4f",
             key="lat_input",
-            label_visibility="collapsed",
         )
     with col_lng:
-        st.markdown(f"<div style='text-align:right;font-size:0.8rem;color:#94a3b8;padding-top:0.5rem;'>{st.session_state.latitude:.4f}°N</div>", unsafe_allow_html=True)
-
-    col_lat2, col_lng2 = st.columns([3, 1])
-    with col_lat2:
-        st.number_input(
+        new_lng = st.number_input(
             "Boylam",
             min_value=26.0,
             max_value=45.0,
@@ -275,31 +272,38 @@ def render_input_panel() -> None:
             step=0.01,
             format="%.4f",
             key="lng_input",
-            label_visibility="collapsed",
         )
-    with col_lng2:
-        st.markdown(f"<div style='text-align:right;font-size:0.8rem;color:#94a3b8;padding-top:0.5rem;'>{st.session_state.longitude:.4f}°E</div>", unsafe_allow_html=True)
 
-    # ── 4.3 Tarih ──
-    selected_date = st.date_input(
-        "Tarih",
-        value=st.session_state.analysis_date,
-        key="date_input",
-        label_visibility="collapsed",
-    )
-    st.session_state.analysis_date = selected_date
+    # Manuel koordinat değişimi haritayı da günceller
+    manual_changed = False
+    if new_lat != st.session_state.latitude:
+        st.session_state.latitude = new_lat
+        manual_changed = True
+    if new_lng != st.session_state.longitude:
+        st.session_state.longitude = new_lng
+        manual_changed = True
+    if manual_changed:
+        st.rerun()
 
-    # ── 4.4 Derinlik ──
-    depth = st.slider(
-        "Odak Derinliği (km)",
-        min_value=DEPTH_MIN,
-        max_value=DEPTH_MAX,
-        value=int(st.session_state.depth),
-        step=1,
-        key="depth_slider",
-        label_visibility="collapsed",
-    )
-    st.session_state.depth = depth
+    # ── 4.3 Tarih ve Derinlik (yan yana) ──
+    col_date, col_depth = st.columns(2)
+    with col_date:
+        selected_date = st.date_input(
+            "Tarih",
+            value=st.session_state.analysis_date,
+            key="date_input",
+        )
+        st.session_state.analysis_date = selected_date
+    with col_depth:
+        depth = st.slider(
+            "Derinlik (km)",
+            min_value=DEPTH_MIN,
+            max_value=DEPTH_MAX,
+            value=int(st.session_state.depth),
+            step=1,
+            key="depth_slider",
+        )
+        st.session_state.depth = depth
 
     st.caption(
         "Türkiye sismik rejimi gereği yıkıcı fay sığlık ortalaması (10 km) "
@@ -342,40 +346,20 @@ def render_hero_card(results: dict) -> None:
     confidence = results.get("confidence", 0.0)
 
     with st.container(border=True):
-        col_left, col_right = st.columns([3, 2])
-        with col_left:
-            st.markdown(
-                '<div style="font-size:0.75rem;font-weight:600;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;">'
-                'Tahmin Edilen Büyüklük</div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f'<div style="display:flex;align-items:baseline;margin-top:0.3rem;">'
-                f'<span class="hero-big">{mag:.1f}</span>'
-                f'<span class="hero-unit">Mw</span></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                '<div style="font-size:0.8rem;color:#94a3b8;margin-top:0.5rem;">'
-                'Moment Büyüklüğü Ölçeği (Mw) Hesabı</div>',
-                unsafe_allow_html=True,
-            )
-        with col_right:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(
-                f'<div style="text-align:right;"><span class="risk-badge {risk["cls"]}">{risk["label"]}</span></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f'<div style="text-align:right;font-size:0.75rem;color:#94a3b8;margin-top:0.5rem;">'
-                f'Seçilen Model: <strong style="color:#475569;">{results["best_model_name"]}</strong></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f'<div style="text-align:right;font-size:0.75rem;color:#94a3b8;margin-top:0.3rem;">'
-                f'Güven Skoru: <strong style="color:#475569;">{confidence:.1f}%</strong></div>',
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+            f'<div style="font-size:1.05rem;font-weight:700;color:#1e293b;display:flex;align-items:baseline;gap:0.35rem;">'
+            f'TAHMIN EDİLEN BÜYÜKÜK: '
+            f'<span style="font-size:1.35rem;font-weight:800;color:#0f766e;">{mag:.1f} Mw</span>'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<span class="risk-badge {risk["cls"]}">{risk["label"]}</span>'
+            f'<div style="font-size:0.75rem;color:#94a3b8;margin-top:0.5rem;">Seçilen Model: <strong style="color:#475569;">{results["best_model_name"]}</strong></div>'
+            f'<div style="font-size:0.75rem;color:#94a3b8;margin-top:0.3rem;">Güven Skoru: <strong style="color:#475569;">{confidence:.1f}%</strong></div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def render_analysis_summary(results: dict) -> None:
@@ -521,30 +505,33 @@ def render_leaderboard(results: dict) -> None:
 
 def render_empty_dashboard() -> None:
     """Henüz analiz yapılmamışsa gösterilecek boş durum ekranını çizer."""
-    st.info(
-        "Sol panelden bir koordinat seçip parametreleri belirledikten sonra "
-        "**'Analizi Başlat'** butonuna basarak sismik simülasyon sonuçlarını "
-        "görüntüleyebilirsiniz.",
-        icon="👈",
+    st.markdown(
+        """
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:4rem;">
+            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:2.5rem;text-align:center;max-width:520px;">
+                <div style="font-size:1.1rem;font-weight:700;color:#1e293b;margin-bottom:0.75rem;">
+                    Sismik Analizi Başlatın
+                </div>
+                <div style="font-size:0.85rem;color:#64748b;line-height:1.7;">
+                    Sol panelden bir koordinat seçip parametreleri belirledikten sonra
+                    <strong style="color:#0f766e;">Analizi Başlat</strong> butonuna basarak
+                    sismik simülasyon sonuçlarını görüntüleyebilirsiniz.
+                </div>
+            </div>
+            <div style="display:flex;gap:1rem;margin-top:1.5rem;width:100%;max-width:520px;">
+                <div style="flex:1;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:1.25rem;opacity:0.6;text-align:center;">
+                    <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;">Tahmini Maksimum Şiddet</div>
+                    <div style="color:#cbd5e1;font-size:1.35rem;font-weight:800;margin-top:0.2rem;">—.— Mw</div>
+                </div>
+                <div style="flex:1;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:1.25rem;opacity:0.6;text-align:center;">
+                    <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;">Güven Skoru</div>
+                    <div style="color:#cbd5e1;font-size:1.35rem;font-weight:800;margin-top:0.2rem;">—%</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(
-            '<div class="card" style="opacity:0.6;">'
-            '<div style="color:#94a3b8;font-size:0.8rem;font-weight:600;">Tahmini Maksimum Şiddet</div>'
-            '<div style="color:#cbd5e1;font-size:2.5rem;font-weight:800;">—.— Mw</div>'
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    with col2:
-        st.markdown(
-            '<div class="card" style="opacity:0.6;">'
-            '<div style="color:#94a3b8;font-size:0.8rem;font-weight:600;">Güven Skoru</div>'
-            '<div style="color:#cbd5e1;font-size:2.5rem;font-weight:800;">—%</div>'
-            "</div>",
-            unsafe_allow_html=True,
-        )
 
 
 def render_dashboard(results: dict) -> None:
@@ -565,11 +552,7 @@ def render_dashboard(results: dict) -> None:
     render_hero_card(results)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # BÖLÜM B: Algoritma Karşılaştırması (Leaderboard)
-    render_leaderboard(results)
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # BÖLÜM C: Sismik Analiz Raporu
+    # BÖLÜM B: Sismik Analiz Raporu
     render_analysis_summary(results)
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -594,7 +577,7 @@ def main() -> None:
     inject_styles()
     init_session_state()
 
-    left_col, right_col = st.columns([5, 7], gap="large")
+    left_col, right_col = st.columns(2, gap="large")
 
     with left_col:
         render_input_panel()

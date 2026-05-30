@@ -105,14 +105,14 @@ try:
     model_status["mlp"] = "loaded"
 except Exception as e:
     print(f"MLP yüklenemedi: {e}")
-    model_status["mlp"] = "not_trained"
+    model_status["mlp"] = "error"
 
 try:
     models["xgboost"] = load_latest_model(XGB_MODELS_DIR, "xgb")
     model_status["xgboost"] = "loaded"
 except Exception as e:
     print(f"XGBoost yüklenemedi: {e}")
-    model_status["xgboost"] = "not_trained"
+    model_status["xgboost"] = "error"
 
 scaler = load_scaler()
 scaler_features = load_scaler_features()
@@ -263,7 +263,22 @@ def predict_earthquake(req: PredictionRequest):
     else:
         confidence = 75.0
 
-    # 10. Sonucu JSON olarak döndür
+    # 10. Yüklenen model dosya adlarını belirle (debug/doğrulama için)
+    loaded_models_info = {}
+    for m_name, m_obj in models.items():
+        if m_obj is not None:
+            # En son yüklenen dosya adını bul
+            m_dir = {"random_forest": RF_MODELS_DIR, "mlp": MLP_MODELS_DIR, "xgboost": XGB_MODELS_DIR}[m_name]
+            prefix = {"random_forest": "rf", "mlp": "mlp", "xgboost": "xgb"}[m_name]
+            try:
+                files = os.listdir(m_dir)
+                versions = [int(f.replace(f"{prefix}_model_v", "").replace(".pkl", "")) for f in files if f.startswith(f"{prefix}_model_v") and f.endswith(".pkl")]
+                latest = max(versions) if versions else "?"
+                loaded_models_info[m_name] = f"{prefix}_model_v{latest}.pkl"
+            except Exception:
+                loaded_models_info[m_name] = "unknown"
+
+    # 11. Sonucu JSON olarak döndür
     result = {
         "magnitude": round(best_magnitude, 1),
         "best_model_name": best_model_name.replace("_", " ").title(),
@@ -274,6 +289,9 @@ def predict_earthquake(req: PredictionRequest):
         "risk_level": risk_level,
         "feature_importance": feature_importance,
         "model_status": model_status,
+        "preprocessing_version": "V2 (8 Özellik, K-Means'siz, Ağırlıksız)",
+        "loaded_models": loaded_models_info,
+        "scaler_features": scaler_features,
     }
 
     # Küçük düzeltme: best_model_name display formatı
@@ -285,3 +303,8 @@ def predict_earthquake(req: PredictionRequest):
     result["best_model_name"] = display_names.get(best_model_name, best_model_name)
 
     return result
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
