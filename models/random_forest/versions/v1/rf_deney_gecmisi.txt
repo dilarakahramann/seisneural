@@ -1,0 +1,12 @@
+
+==================================================
+AŞAMA 1: EĞİTİM RAPORU - RF_MODEL_V1
+==================================================
+Tarih        : 2026-05-30 14:27:21
+Parametreler : {'bootstrap': True, 'max_depth': 10, 'max_features': 'sqrt', 'min_samples_leaf': 2, 'min_samples_split': 10, 'n_estimators': 100}
+
+[ DOĞRULAMA METRİKLERİ ]
+  CV Doğrulama RMSE: 1.7060
+  CV Eğitim RMSE   : 0.7450
+  Overfitting Gap  : -0.9610
+--------------------------------------------------

@@ -1,139 +1,121 @@
 import pandas as pd
+import numpy as np
 import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-import numpy as np
+from sklearn.metrics import mean_squared_error
 import joblib
 import os
-import warnings
 
-warnings.filterwarnings("ignore")
+print("==================================================")
+print(" SEISNEURAL - XGBOOST EĞİTİMİ (V2) BAŞLIYOR ")
+print("==================================================")
 
-# macOS/Windows'ta çoklu işlem hatalarını önlemek için ana blok
-if __name__ == '__main__':
+# 1. VERİLERİ YÜKLE
+print("Veri Fabrikasından temizlenen X_train ve y_train yükleniyor...")
+X_train = pd.read_csv('../../data/processed/X_train.csv')
+y_train = pd.read_csv('../../data/processed/y_train.csv').values.ravel()
 
-    # 1. VERİLERİ YÜKLEME (ORİJİNAL Eğitim Verisi + Sample Weights)
-    print("Eğitim verileri yükleniyor...")
-    X_train = pd.read_csv('../../data/processed/X_train_original.csv')
-    y_train = pd.read_csv('../../data/processed/y_train_original.csv').values.ravel()
-    sample_weights = pd.read_csv('../../data/processed/sample_weights.csv').values.ravel()
+print(f"Eğitim Seti Boyutu: {X_train.shape}")
 
-    print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
-    print(f"Öznitelikler: {list(X_train.columns)}")
-    print(f"Sample weights aralığı: [{sample_weights.min():.4f}, {sample_weights.max():.4f}]")
+# 2. AĞIRLIK HESAPLAMA FONKSİYONU (On-the-fly Smoothed Weights)
+def calculate_smoothed_weights(y_data, bins=20):
+    """Deprem büyüklük frekanslarına göre karekök ile yumuşatılmış ağırlık hesaplar."""
+    print("Sınıf dengesizliği için 'Smoothed Sample Weights' hesaplanıyor...")
+    hist, bin_edges = np.histogram(y_data, bins=bins)
+    bin_indices = np.digitize(y_data, bin_edges[:-1])
+    bin_indices = np.clip(bin_indices - 1, 0, len(hist) - 1)
+    bin_freq = hist[bin_indices]
 
-    # 2. DENENECEK PARAMETRE HAVUZU
-    param_distributions = {
-        'max_depth': [3, 5, 7, 9],                 # Karar ağaçlarının derinliği
-        'learning_rate': [0.01, 0.05, 0.1, 0.2],   # Öğrenme hızı
-        'n_estimators': [100, 200, 300, 500],        # Kurulacak ağaç sayısı
-        'subsample': [0.7, 0.8, 1.0],                # Aşırı öğrenmeyi engellemek için örneklem oranı
-        'colsample_bytree': [0.7, 0.8, 1.0]          # Ağaç başına kullanılacak kolon oranı
-    }
+    # Ekstrem cezaları engellemek için karekök (sqrt) ile yumuşatma
+    weights = 1.0 / np.sqrt(bin_freq + 1e-6)
+    normalized_weights = weights / weights.max()
 
-    # Temel model iskeleti
-    xgb_model = xgb.XGBRegressor(objective='reg:squarederror', random_state=42)
+    print(f"Ağırlık Aralığı: [{normalized_weights.min():.4f}, {normalized_weights.max():.4f}]")
+    return normalized_weights
 
-    # 3. RANDOMIZED SEARCH İLE EN İYİ PARAMETRELERİ ARAMA
-    print("Hiperparametre optimizasyonu başlatılıyor, bu birkaç dakika sürebilir...\n")
-    random_search = RandomizedSearchCV(
-        estimator=xgb_model,
-        param_distributions=param_distributions,
-        n_iter=15,          # 15 farklı rastgele kombinasyon deneyecek
-        scoring='neg_mean_squared_error',
-        cv=5,               # 5-Fold Cross Validation (Künyede k-Katlı Çapraz Doğrulama)
-        verbose=2,          # Konsola sürecin ilerleyişini yazdırır
-        random_state=42,
-        n_jobs=2,           # Hafıza sızıntısını önlemek için çekirdek kısıtlaması
-        pre_dispatch='2*n_jobs',
-        return_train_score=True,
-    )
+sample_weights = calculate_smoothed_weights(y_train)
 
-    random_search.fit(X_train, y_train, sample_weight=sample_weights)
+# 3. XGBOOST HİPERPARAMETRE HAVUZU (RandomizedSearch)
+print("\nHiperparametre Uzayı (RandomizedSearch) oluşturuluyor...")
+param_distributions = {
+    'max_depth': [3, 5, 7, 9],
+    'learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'n_estimators': [100, 200, 300, 500],
+    'subsample': [0.7, 0.8, 1.0],
+    'colsample_bytree': [0.7, 0.8, 1.0]
+}
 
-    # 4. CROSS-VALIDATION SONUÇLARI
-    cv_sonuclari = random_search.cv_results_
-    en_iyi_index = random_search.best_index_
+xgb_model = xgb.XGBRegressor(
+    objective='reg:squarederror',
+    random_state=42,
+)
 
-    cv_val_rmse = np.sqrt(-cv_sonuclari['mean_test_score'][en_iyi_index])
-    cv_train_rmse = np.sqrt(-cv_sonuclari['mean_train_score'][en_iyi_index])
-    overfit_gap = cv_train_rmse - cv_val_rmse
+# 4. RANDOMIZED SEARCH KURULUMU
+random_search = RandomizedSearchCV(
+    estimator=xgb_model,
+    param_distributions=param_distributions,
+    n_iter=15,
+    scoring='neg_mean_squared_error',
+    cv=5,
+    verbose=2,
+    random_state=42,
+    n_jobs=2,
+    pre_dispatch='2*n_jobs',
+    return_train_score=True
+)
 
-    # R² skorları
-    from sklearn.model_selection import cross_val_score, KFold
-    kfold = KFold(n_splits=5, shuffle=True, random_state=42)
-    cv_r2_scores = cross_val_score(
-        random_search.best_estimator_, X_train, y_train, cv=kfold, scoring='r2'
-    )
-    cv_val_r2 = cv_r2_scores.mean()
+# 5. EĞİTİMİ BAŞLAT
+print("\n[EĞİTİM BAŞLIYOR] XGBoost hiperparametre araması devrede...")
+print("Bu işlem 15 farklı kombinasyon deneyecek. 10-25 dakika sürebilir.\n")
 
-    print("\n=== CROSS-VALIDATION (DOĞRULAMA) KONTROLÜ ===")
-    print(f"En İyi Parametreler             : {random_search.best_params_}")
-    print(f"K-Fold Ortalama Doğrulama RMSE  : {cv_val_rmse:.4f}")
-    print(f"K-Fold Ortalama Doğrulama R²    : {cv_val_r2:.4f}")
-    print(f"K-Fold Ortalama Eğitim RMSE     : {cv_train_rmse:.4f}")
-    print(f"Overfitting Gap                 : {overfit_gap:.4f}")
+random_search.fit(X_train, y_train, sample_weight=sample_weights)
 
-    # 5. ÖZNİTELİK ÖNEMİ (Feature Importance)
-    best_xgb = random_search.best_estimator_
-    importances = best_xgb.feature_importances_
-    features = X_train.columns
+# 6. EĞİTİM SONUÇLARI VE METRİKLER
+best_model = random_search.best_estimator_
+best_params = random_search.best_params_
 
-    feature_importance_df = pd.DataFrame({
-        'Öznitelik': features,
-        'Etki Oranı (%)': importances * 100
-    }).sort_values(by='Etki Oranı (%)', ascending=False)
+# CV RMSE Hesabı
+cv_mse = -random_search.best_score_
+cv_rmse = np.sqrt(cv_mse)
 
-    print("\n=== RİSKİ TETİKLEYEN FAKTÖRLER ===")
-    print(feature_importance_df.to_string(index=False))
+# Eğitim Seti Üzerindeki Performans
+train_predictions = best_model.predict(X_train)
+train_mse = mean_squared_error(y_train, train_predictions)
+train_rmse = np.sqrt(train_mse)
 
-    # 6. MODELİ, GRAFİĞİ VE LOGU VERSİYONLU KAYDETME
-    mevcut_dosyalar = os.listdir('.')
-    versiyonlar = [int(d.replace('xgb_model_v', '').replace('.pkl', '')) for d in mevcut_dosyalar if d.startswith('xgb_model_v') and d.endswith('.pkl')]
-    yeni_versiyon_no = max(versiyonlar) + 1 if versiyonlar else 1
+overfitting_gap = cv_rmse - train_rmse
 
-    model_adi = f'xgb_model_v{yeni_versiyon_no}.pkl'
-    oznitelik_adi = f'oznitelik_onemi_v{yeni_versiyon_no}.png'
+# R² skorları (Sadece Eğitim Seti Üzerinde - Gerçek R2 Test Dosyasında Çıkacak)
+from sklearn.metrics import r2_score
+train_r2 = r2_score(y_train, train_predictions)
 
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+print("\n==================================================")
+print("AŞAMA 1: EĞİTİM RAPORU - XGB_MODEL_V2")
+print("==================================================")
+print(f"En İyi Parametreler : {best_params}")
+print("\n[ DOĞRULAMA METRİKLERİ ]")
+print(f"  CV Doğrulama RMSE: {cv_rmse:.4f}")
+print(f"  CV Eğitim RMSE   : {train_rmse:.4f}")
+print(f"  Eğitim R² Skoru  : {train_r2:.4f}")
+print(f"  Overfitting Gap  : {overfitting_gap:.4f}")
+print("--------------------------------------------------")
 
-    plt.figure(figsize=(10, 6))
-    sns.barplot(
-        x='Etki Oranı (%)',
-        y='Öznitelik',
-        data=feature_importance_df,
-        hue='Öznitelik',
-        palette='viridis',
-        legend=False
-    )
-    plt.title(f"Riski En Çok Etkileyen Faktörler (v{yeni_versiyon_no})", fontsize=14)
-    plt.xlabel("Etki Oranı (%)", fontsize=12)
-    plt.ylabel("Öznitelikler", fontsize=12)
-    plt.tight_layout()
-    plt.savefig(oznitelik_adi)
-    plt.close()
+# 7. MODELİ KAYDET
+model_path = './xgb_model_v2.pkl'
+joblib.dump(best_model, model_path)
+print(f"\n[BAŞARILI] Model kaydedildi: {model_path}")
 
-    joblib.dump(best_xgb, model_adi)
-    print(f"\n[BAŞARILI] Model '{model_adi}' ve Öznitelik grafiği '{oznitelik_adi}' kaydedildi.")
+# Deney geçmişini dosyaya yazdır
+log_path = './xgb_deney_gecmisi.txt'
+with open(log_path, 'a', encoding='utf-8') as f:
+    f.write(f"\n==================================================\n")
+    f.write(f"AŞAMA 1: EĞİTİM RAPORU - XGB_MODEL_V2\n")
+    f.write(f"==================================================\n")
+    f.write(f"Parametreler: {best_params}\n")
+    f.write(f"CV Doğrulama RMSE: {cv_rmse:.4f}\n")
+    f.write(f"Eğitim R² Skoru  : {train_r2:.4f}\n")
+    f.write(f"CV Eğitim RMSE: {train_rmse:.4f}\n")
+    f.write(f"Overfitting Gap: {overfitting_gap:.4f}\n")
+    f.write("-" * 50 + "\n")
 
-    # 7. EĞİTİM SONUÇLARINI LOGLAMA
-    log_dosyasi = "xgb_deney_gecmisi.txt"
-    zaman = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    log_metni = f"""
-==================================================
-AŞAMA 1: EĞİTİM RAPORU - {model_adi.replace('.pkl', '').upper()}
-==================================================
-Tarih        : {zaman}
-Parametreler : {random_search.best_params_}
-
-[ DOĞRULAMA METRİKLERİ ]
-  CV Doğrulama RMSE: {cv_val_rmse:.4f}
-  CV Doğrulama R²  : {cv_val_r2:.4f}
-  CV Eğitim RMSE   : {cv_train_rmse:.4f}
-  Overfitting Gap  : {overfit_gap:.4f}
---------------------------------------------------\n"""
-
-    with open(log_dosyasi, "a", encoding="utf-8") as dosya:
-        dosya.write(log_metni)
+print("Eğitim süreci başarıyla tamamlandı. Artık Test (xgboost_test.py) aşamasına geçebilirsin!")
