@@ -4,7 +4,7 @@ import joblib
 import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 
 print("==================================================")
 print(" SEISNEURAL - RANDOM FOREST EĞİTİMİ (V2) BAŞLIYOR ")
@@ -80,12 +80,16 @@ train_rmse = np.sqrt(train_mse)
 
 overfitting_gap = cv_rmse - train_rmse
 
+# Eğitim Seti Üzerindeki R² (Overfitting kontrolü için)
+train_r2 = r2_score(y_train, train_predictions)
+
 print("\n==================================================")
 print("AŞAMA 1: EĞİTİM RAPORU - RF_MODEL_V2")
 print("==================================================")
 print(f"En İyi Parametreler : {best_params}")
 print("\n[ DOĞRULAMA METRİKLERİ ]")
 print(f"  CV Doğrulama RMSE: {cv_rmse:.4f}")
+print(f"  Eğitim R² Skoru  : {train_r2:.4f}")
 print(f"  CV Eğitim RMSE   : {train_rmse:.4f}")
 print(f"  Overfitting Gap  : {overfitting_gap:.4f}")
 print("--------------------------------------------------")
@@ -101,6 +105,7 @@ with open(log_path, 'a', encoding='utf-8') as f:
     f.write(f"\nVersiyon: V2 (Smoothed Weights & Tam Veri)\n")
     f.write(f"Parametreler: {best_params}\n")
     f.write(f"CV Doğrulama RMSE: {cv_rmse:.4f}\n")
+    f.write(f"Eğitim R² Skoru  : {train_r2:.4f}\n")
     f.write(f"CV Eğitim RMSE: {train_rmse:.4f}\n")
     f.write(f"Overfitting Gap: {overfitting_gap:.4f}\n")
     f.write("-" * 50 + "\n")

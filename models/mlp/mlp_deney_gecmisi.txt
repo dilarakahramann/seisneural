@@ -9,3 +9,13 @@ CV Eğitim RMSE: 0.3642
 Overfitting Gap: 0.0024
 --------------------------------------------------
 
+
+==================================================
+AŞAMA 1: EĞİTİM RAPORU - MLP_MODEL_V3 (ENERJİ DÖNÜŞÜMLÜ)
+==================================================
+Parametreler: {'max_iter': 1000, 'learning_rate_init': 0.005, 'hidden_layer_sizes': (128, 64), 'alpha': 0.0001}
+CV Doğrulama RMSE (Enerji): 0.0064
+Eğitim R² Skoru   (Enerji): -0.0003
+CV Eğitim RMSE    (Enerji): 0.0064
+Overfitting Gap   (Enerji): -0.0000
+--------------------------------------------------
