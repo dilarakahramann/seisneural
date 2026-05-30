@@ -13,7 +13,7 @@ import seaborn as sns
 warnings.filterwarnings("ignore")
 
 print("==================================================")
-print(" SEISNEURAL - YSA (MLP) EĞİTİMİ (V2) BAŞLIYOR ")
+print(" SEISNEURAL - YSA (MLP) EĞİTİMİ (V4) BAŞLIYOR ")
 print("==================================================")
 
 # 1. VERİLERİ YÜKLE
@@ -82,7 +82,7 @@ from sklearn.metrics import r2_score
 train_r2 = r2_score(y_train, train_predictions)
 
 print("\n==================================================")
-print("AŞAMA 1: EĞİTİM RAPORU - MLP_MODEL_V2")
+print("AŞAMA 1: EĞİTİM RAPORU - MLP_MODEL_V4")
 print("==================================================")
 print(f"En İyi Parametreler : {best_params}")
 print("\n[ DOĞRULAMA METRİKLERİ ]")
@@ -110,17 +110,17 @@ print("\n=== RİSKİ TETİKLEYEN FAKTÖRLER ===")
 print(feature_importance_df.to_string(index=False))
 
 # 7. MODELİ, GRAFİĞİ VE LOGU KAYDET
-model_path = './mlp_model_v2.pkl'
+model_path = './mlp_model_v4.pkl'
 joblib.dump(best_model, model_path)
 print(f"\n[BAŞARILI] Model kaydedildi: {model_path}")
 
-oznitelik_adi = './oznitelik_onemi_v2.png'
+oznitelik_adi = './oznitelik_onemi_v4.png'
 plt.figure(figsize=(10, 6))
 sns.barplot(
     x='Etki Oranı (%)', y='Öznitelik', data=feature_importance_df,
     hue='Öznitelik', palette='viridis', legend=False
 )
-plt.title("Riski En Çok Etkileyen Faktörler (v2)", fontsize=14)
+plt.title("Riski En Çok Etkileyen Faktörler (v4)", fontsize=14)
 plt.xlabel("Etki Oranı (%)", fontsize=12)
 plt.ylabel("Öznitelikler", fontsize=12)
 plt.tight_layout()

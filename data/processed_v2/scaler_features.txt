@@ -1,0 +1,1 @@
+Year,Month_sin,Month_cos,Day_sin,Day_cos,Latitude,Longitude,Depth,Bolge_0,Bolge_1,Bolge_2,Bolge_3,Bolge_4,Bolge_5
