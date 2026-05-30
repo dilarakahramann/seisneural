@@ -1,0 +1,26 @@
+{
+  "random_forest": {
+    "test_rmse": null,
+    "test_r2": null,
+    "test_mse": null,
+    "test_mae": null,
+    "model_file": null,
+    "last_updated": null
+  },
+  "mlp": {
+    "test_rmse": null,
+    "test_r2": null,
+    "test_mse": null,
+    "test_mae": null,
+    "model_file": null,
+    "last_updated": null
+  },
+  "xgboost": {
+    "test_rmse": null,
+    "test_r2": null,
+    "test_mse": null,
+    "test_mae": null,
+    "model_file": null,
+    "last_updated": null
+  }
+}
