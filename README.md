@@ -40,6 +40,7 @@ pip install -r requirements.txt
 ## 📦 Model Dosyaları ve Büyük Veri Kümeleri
 
 GitHub depolama sınırları nedeniyle büyük model dosyaları (`.pkl`) ve ham veri kümeleri Google Drive üzerinden paylaşılmaktadır.
+(Proje Sunum Dosyasına (PDF) ve proje raporuna da aynı linkten ulaşabilirsiniz.)
 
 🔗 **Google Drive:** [https://drive.google.com/drive/folders/1Q5FzxWP50nZd41P-ewssdBlX_Vf8Glhl?usp=sharing]
 
@@ -49,6 +50,8 @@ GitHub depolama sınırları nedeniyle büyük model dosyaları (`.pkl`) ve ham 
 - `models/xgboost/xgb_model_v4.pkl` — XGBoost final modeli (~8 MB)
 - `models/mlp/mlp_model_v4.pkl` — MLP final modeli (~1 MB)
 - `data/processed/deprem_scaler.pkl/`
+- ysarapor.docx
+- sunum_dosyası.pdf
 
 ---
 
