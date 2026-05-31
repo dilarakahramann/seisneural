@@ -133,7 +133,7 @@ def init_session_state() -> None:
         "latitude": TURKEY_CENTER_LAT,
         "longitude": TURKEY_CENTER_LNG,
         "depth": DEPTH_DEFAULT,
-        "analysis_date": date.today(),
+        "analysis_year": 2024,
         "analyzed": False,
         "results": None,
     }
@@ -152,16 +152,16 @@ def get_risk_level(magnitude: float) -> dict:
     return RISK_THRESHOLDS["high"]
 
 
-def run_api_analysis(lat: float, lng: float, depth: float, analysis_date: date) -> dict:
+def run_api_analysis(lat: float, lng: float, depth: float) -> dict:
     """Backend API'ye POST isteği göndererek gerçek analiz verisi alır."""
     try:
         payload = {
             "latitude": float(lat),
             "longitude": float(lng),
             "depth": float(depth),
-            "year": int(analysis_date.year),
-            "month": int(analysis_date.month),
-            "day": int(analysis_date.day),
+            "year": 2024,
+            "month": 1,
+            "day": 1,
         }
         response = requests.post("http://localhost:8000/predict", json=payload, timeout=10)
         response.raise_for_status()
@@ -261,7 +261,6 @@ def render_input_panel() -> None:
             value=float(st.session_state.latitude),
             step=0.01,
             format="%.4f",
-            key="lat_input",
         )
     with col_lng:
         new_lng = st.number_input(
@@ -271,41 +270,30 @@ def render_input_panel() -> None:
             value=float(st.session_state.longitude),
             step=0.01,
             format="%.4f",
-            key="lng_input",
         )
 
     # Manuel koordinat değişimi haritayı da günceller
+    # (Küçük float farklarını engellemek için eşik kullanılır)
     manual_changed = False
-    if new_lat != st.session_state.latitude:
-        st.session_state.latitude = new_lat
+    if abs(new_lat - st.session_state.latitude) > 0.0001:
+        st.session_state.latitude = round(new_lat, 4)
         manual_changed = True
-    if new_lng != st.session_state.longitude:
-        st.session_state.longitude = new_lng
+    if abs(new_lng - st.session_state.longitude) > 0.0001:
+        st.session_state.longitude = round(new_lng, 4)
         manual_changed = True
     if manual_changed:
         st.rerun()
 
-    # ── 4.3 Tarih ve Derinlik (yan yana) ──
-    col_date, col_depth = st.columns(2)
-    with col_date:
-        selected_date = st.date_input(
-            "Tarih",
-            value=st.session_state.analysis_date,
-            min_value=date(1990, 1, 1),
-            max_value=date.today(),
-            key="date_input",
-        )
-        st.session_state.analysis_date = selected_date
-    with col_depth:
-        depth = st.slider(
-            "Derinlik (km)",
-            min_value=DEPTH_MIN,
-            max_value=DEPTH_MAX,
-            value=int(st.session_state.depth),
-            step=1,
-            key="depth_slider",
-        )
-        st.session_state.depth = depth
+    # ── 4.3 Derinlik ──
+    depth = st.slider(
+        "Derinlik (km)",
+        min_value=DEPTH_MIN,
+        max_value=DEPTH_MAX,
+        value=int(st.session_state.depth),
+        step=1,
+        key="depth_slider",
+    )
+    st.session_state.depth = depth
 
     st.caption(
         "Türkiye sismik rejimi gereği yıkıcı fay sığlık ortalaması (10 km) "
@@ -322,7 +310,6 @@ def render_input_panel() -> None:
                 st.session_state.latitude,
                 st.session_state.longitude,
                 st.session_state.depth,
-                st.session_state.analysis_date,
             )
             if results is not None:
                 st.session_state.results = results
@@ -385,7 +372,6 @@ def render_analysis_summary(results: dict) -> None:
         f"""
         <div class="analysis-box">
             <strong>Koordinat:</strong> {st.session_state.latitude:.4f}°N, {st.session_state.longitude:.4f}°E &nbsp;|&nbsp;
-            <strong>Tarih:</strong> {st.session_state.analysis_date.strftime("%d.%m.%Y")} &nbsp;|&nbsp;
             <strong>Derinlik:</strong> {st.session_state.depth} km<br><br>
             {results['best_model_name']} modeli, bu parametrelere göre
             <strong>{mag:.1f} Mw</strong> büyüklüğünde bir deprem tahmin ediyor.
